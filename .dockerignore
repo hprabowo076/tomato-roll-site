@@ -1,0 +1,16 @@
+.git
+.next
+node_modules
+.env
+.env.local
+*.md
+docker-compose*.yml
+.dockerignore
+Dockerfile
+.vercel
+.DS_Store
+test-results
+playwright-report
+blob-report
+playwright/.cache
+public/media

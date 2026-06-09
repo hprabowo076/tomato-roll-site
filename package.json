@@ -1,7 +1,7 @@
 {
   "name": "tomato-roll",
   "version": "1.0.0",
-  "description": "Website template for Payload",
+  "description": "Tomato Roll — a content-driven website built with Payload CMS, Next.js, and PostgreSQL",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -80,10 +80,15 @@
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
-    "pnpm": "^9 || ^10"
+    "pnpm": ">=9"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "sharp",
+      "esbuild",
+      "unrs-resolver"
+    ],
+    "allowBuilds": [
       "sharp",
       "esbuild",
       "unrs-resolver"
