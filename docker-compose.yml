@@ -1,8 +1,14 @@
 services:
   app:
+    image: tomato-roll-app:latest
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DATABASE_URL: ${BUILD_DATABASE_URL:-postgres://postgres:postgres@host.docker.internal:5432/tomato-roll}
+        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-http://localhost:3000}
+      secrets:
+        - payload_secret
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -17,6 +23,8 @@ services:
   postgres:
     image: postgres:17
     restart: unless-stopped
+    ports:
+      - '5432:5432'
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -40,3 +48,7 @@ services:
 
 volumes:
   pgdata:
+
+secrets:
+  payload_secret:
+    environment: PAYLOAD_SECRET

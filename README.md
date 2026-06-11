@@ -7,8 +7,8 @@ Tomato Roll is a content-driven website built with [Payload CMS](https://payload
 - **CMS**: Payload 3.85
 - **Framework**: Next.js 16 (App Router)
 - **Database**: PostgreSQL (via `@payloadcms/db-postgres`)
-- **Runtime**: Node.js 20+
-- **Package Manager**: pnpm >=9
+- **Runtime**: Node.js 22+
+- **Package Manager**: pnpm >=11
 - **Styling**: TailwindCSS 4 + shadcn/ui
 - **Rich Text**: Lexical editor
 - **Language**: TypeScript
@@ -51,8 +51,8 @@ Tomato Roll is a content-driven website built with [Payload CMS](https://payload
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm >=9
+- Node.js 22+
+- pnpm >=11
 - Docker (for PostgreSQL)
 
 ### 1. Clone & Install
@@ -117,7 +117,7 @@ pnpm payload migrate
 
 ## Production Deployment
 
-The production stack runs three containers: **app** (Next.js standalone), **postgres**, and **cloudflared** (Cloudflare Tunnel).
+The production stack runs three containers: **app** (Next.js standalone), **postgres**, and **cloudflared** (Cloudflare Tunnel). Migrations run automatically at startup via `prodMigrations` in the database adapter config — no manual migration step needed.
 
 ### 1. Configure Environment
 
@@ -133,8 +133,9 @@ Edit `.env` and replace all placeholder values:
 | `CRON_SECRET` | `openssl rand -hex 16` |
 | `PREVIEW_SECRET` | `openssl rand -hex 16` |
 | `POSTGRES_PASSWORD` | Set a strong password |
-| `NEXT_PUBLIC_SERVER_URL` | Your Cloudflare Tunnel public URL (e.g. `https://tomato-roll.yourdomain.com`) |
+| `NEXT_PUBLIC_SERVER_URL` | Your Cloudflare Tunnel public URL (e.g. `https://tomatoroll.cloud`) |
 | `CLOUDFLARED_TOKEN` | From Cloudflare Zero Trust dashboard (see below) |
+| `BUILD_DATABASE_URL` | Connection string to reach PostgreSQL from the Docker builder (e.g. `postgres://postgres:password@host.docker.internal:5432/tomato-roll`) |
 
 ### 2. Set Up Cloudflare Tunnel
 
@@ -145,21 +146,36 @@ Edit `.env` and replace all placeholder values:
 
 ### 3. Build & Deploy
 
+The build requires a running PostgreSQL instance to generate static pages. Set `BUILD_DATABASE_URL` to point to your PostgreSQL from the Docker builder (use `host.docker.internal` on Docker Desktop):
+
 ```bash
+export BUILD_DATABASE_URL="postgres://postgres:yourpassword@host.docker.internal:5432/tomato-roll"
 docker compose up -d --build
 ```
 
-This builds the app image, starts PostgreSQL, runs the app on port 3000, and connects the Cloudflare Tunnel. The app is accessible at your tunnel domain.
+This builds the app image (using Docker Build Secrets for `PAYLOAD_SECRET`), starts PostgreSQL, runs the app on port 3000, and connects the Cloudflare Tunnel. Migrations are applied automatically when the app starts. The app is accessible at your tunnel domain.
 
-### 4. Run Migrations (First Time)
+> **Build secrets**: `PAYLOAD_SECRET` is passed as a Docker Build Secret (not ARG/ENV) to avoid leaking into the image layers. `DATABASE_URL` is passed as a build ARG since it is only a temporary connection string used during build, not persisted in the runner image.
 
-After the stack is up, run Payload migrations inside the app container:
+### 4. Create First Admin User
 
-```bash
-docker compose exec app sh -c "cd /app && node node_modules/.bin/payload migrate"
+Visit `https://your-domain.com/admin` and create the first admin user through the Payload admin panel.
+
+### Cloudflared UDP Buffer Warning
+
+Cloudflared may log a warning about UDP receive buffer size:
+
+```
+failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 7168 kiB, got: 416 kiB)
 ```
 
-> Note: The standalone Docker image does not include the Payload CLI. For migration-heavy workflows, run migrations from a dev environment before deploying, or extend the Dockerfile to include devDependencies.
+This is non-critical but affects QUIC tunnel performance. On Linux hosts, fix it at the OS level:
+
+```bash
+sudo sysctl -w net.core.rmem_max=7500000
+```
+
+On Docker Desktop (macOS/Windows), this cannot be set per-container and can be safely ignored.
 
 ### Managing the Stack
 
@@ -182,11 +198,12 @@ docker compose down -v
 
 | Variable | Description | Required |
 |---|---|---|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `PAYLOAD_SECRET` | Secret used to sign JWT tokens | Yes |
+| `DATABASE_URL` | PostgreSQL connection string (used at runtime) | Yes |
+| `PAYLOAD_SECRET` | Secret used to sign JWT tokens (injected via Docker Build Secret) | Yes |
 | `NEXT_PUBLIC_SERVER_URL` | Public URL of the app (no trailing slash) | Yes |
 | `CRON_SECRET` | Secret to authenticate cron job requests | Yes |
 | `PREVIEW_SECRET` | Secret to validate draft preview requests | Yes |
+| `BUILD_DATABASE_URL` | PostgreSQL connection string used during `docker build` | Build only |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token | Prod only |
 | `POSTGRES_PASSWORD` | PostgreSQL password (used by compose) | Prod only |
 
